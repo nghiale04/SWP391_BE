@@ -3,7 +3,7 @@ package com.BE.service;
 
 import com.BE.enums.RoleEnum;
 import com.BE.exception.exceptions.BadRequestException;
-import com.BE.mapper.UserMapper;
+
 import com.BE.model.EmailDetail;
 import com.BE.model.request.LoginGoogleRequest;
 import com.BE.model.request.ResetPasswordRequest;
@@ -35,8 +35,6 @@ public class AuthenticationService {
     @Autowired
     JWTService jwtService;
 
-   @Autowired
-    UserMapper userMapper;
 
     @Autowired
     AccountUtils accountUtils;
@@ -45,7 +43,12 @@ public class AuthenticationService {
     EmailService emailService;
 
     public User register(AuthenticationRequest request) {
-        User user = userMapper.toUser(request);
+        User user = new User();
+        user.setEmail(request.getEmail());
+        user.setAddress(request.getAddress());
+        user.setUsername(request.getUsername());
+        user.setPhone(request.getPhone());
+        user.setFullName(request.getFullName());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setRole(RoleEnum.USER);
        try {
@@ -62,10 +65,16 @@ public class AuthenticationService {
                 .orElseThrow(() -> new NullPointerException("Wrong Id Or Password"));
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) throw new NullPointerException("Wrong Id Or Password");
 
-        AuthenticationResponse authenticationResponse = userMapper.toAuthenticationResponse(user);
-        authenticationResponse.setToken(jwtService.generateToken(user));
-
-        return authenticationResponse;
+        return AuthenticationResponse.builder()
+                .id(user.getId())
+                .email(user.getEmail())
+                .address(user.getAddress())
+                .username(user.getUsername())
+                .phone(user.getPhone())
+                .fullName(user.getFullName())
+                .role(user.getRole())
+                .token(jwtService.generateToken(user))
+                .build();
     }
 
 
@@ -73,17 +82,24 @@ public class AuthenticationService {
         try{
             FirebaseToken decodeToken = FirebaseAuth.getInstance().verifyIdToken(loginGoogleRequest.getToken());
             String email = decodeToken.getEmail();
-            User user = userRepository.findByEmail(email).orElseThrow();
+            User user = userRepository.findByEmail(email);
             if(user == null) {
                 user = new User();
-                user.setFirstName(decodeToken.getName());
+                user.setFullName(decodeToken.getName());
                 user.setEmail(email);
                 user.setUsername(email);
+                user.setRole(RoleEnum.USER);
                 user = userRepository.save(user);
             }
-            AuthenticationResponse authenticationResponse = userMapper.toAuthenticationResponse(user);
-            authenticationResponse.setToken(jwtService.generateToken(user));
-            return authenticationResponse;
+
+            return AuthenticationResponse.builder()
+                    .id(user.getId())
+                    .email(user.getEmail())
+                    .username(user.getUsername())
+                    .fullName(user.getFullName())
+                    .role(user.getRole())
+                    .token(jwtService.generateToken(user))
+                    .build();
         } catch (FirebaseAuthException e)
         {
             e.printStackTrace();
@@ -93,15 +109,17 @@ public class AuthenticationService {
 
 
     public void forgotPasswordRequest(String email) {
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new BadRequestException("Email Not Found"));
-
+        User user = userRepository.findByEmail(email);
+        if(user == null) {
+            throw new BadRequestException("Email Not Found");
+        }
         EmailDetail emailDetail = new EmailDetail();
         emailDetail.setRecipient(user.getEmail());
         emailDetail.setSubject("Reset password for account " + user.getEmail() + "!");
         emailDetail.setMsgBody("aaa");
         emailDetail.setButtonValue("Reset Password");
-        emailDetail.setFullName(user.getFirstName() + " " + user.getLastName());
-        emailDetail.setLink("http://jewerystorepoppy.online/reset-password?token=" + jwtService.generateToken(user));
+        emailDetail.setFullName(user.getFullName());
+        emailDetail.setLink("http://localhost:5173?token=" + jwtService.generateToken(user));
 
         Runnable r = new Runnable() {
             @Override

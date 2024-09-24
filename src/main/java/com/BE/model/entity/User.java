@@ -29,9 +29,11 @@ public class User {
     @UuidGenerator
     UUID id;
 
-    String firstName;
+    String fullName;
+    String address;
 
-    String lastName;
+    @Column(unique = true)
+    String phone;
 
 
     @Column(unique = true)
@@ -46,9 +48,7 @@ public class User {
     @Enumerated(value = EnumType.STRING)
     RoleEnum role;
 
-    @ManyToMany(mappedBy = "users",cascade = CascadeType.ALL)
-    @JsonBackReference
-    Set<Project> projects = new HashSet<>();
+
 
 
 }
